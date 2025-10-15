@@ -1,0 +1,9 @@
+# buscar la cuenta asociada a la vm-connect
+# agregarle el permiso desde GCS el datalake
+
+#darle scope a la vm
+# editar vm-connect Accesp desde todas las apis
+
+#comando para probar desde vm-connect
+echo "test ok $(date)" > test.txt
+gcloud storage cp test.txt gs://crypto-data-lake/raw/

@@ -1,0 +1,138 @@
+mkdir cd binance-ws
+cd binance-ws
+
+sudo apt install python3.10-venv
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip websocket-client
+
+Esquizofrenia:
+sudo MODO=MINITICKER_ALL python3 binance_stream.py
+
+Pares sauvesongos:
+sudo MODO=TRADES_TOP TRADES="btcusdt,ethusdt,solusdt,bnbusdt,dogeusdt,xrpusdt,adausdt" python3 binance_stream.py
+
+
+
+config inicial
+--------------------------------------
+sudo apt update
+sudo apt-get update && sudo apt-get upgrade -y
+sudo apt install -y nano
+sudo apt install python3 python3-pip -y
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmour -o /usr/share/keyrings/docker-archive-keyring.gpg
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+
+
+sudo usermod -aG docker $USER
+sudo apt-get install -y docker-compose-plugin
+sudo apt install netcat -y
+
+mkdir -p ~/crypto-kafka/producer
+cd ~/crypto-kafka
+
+export INTERNAL_IP=$(curl -sf -H "Metadata-Flavor: Google" \
+  http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip)
+echo "Internal IP: $INTERNAL_IP"
+
+
+# subir files:
+# ~/crypto-kafka/docker-compose.yml
+# ~/crypto-kafka/producer/requirements.txt
+# ~/crypto-kafka/producer/Dockerfile
+# ~/crypto-kafka/producer/producer_binance_kafka.py
+
+cd ..
+# confirmar internal ip en env
+echo $INTERNAL_IP
+
+# levantar
+docker compose up -d --build
+docker compose logs -f zookeeper
+docker compose logs -f kafka
+
+docker ps | grep kafka
+#revisar topics
+docker exec -it kafka kafka-topics --bootstrap-server localhost:9092 --list
+
+#topics que necesita vm2
+sudo apt install cron -y
+sudo systemctl enable cron
+sudo systemctl start cron
+
+crontab -e
+@reboot /home/jepavasg/crypto-kafka/producer/kafka-init-topics.sh >> /home/jepavasg/crypto-kafka/producer/kafka-init.log 2>&1
+
+#simulación de revisión
+bash /home/jepavasg/crypto-kafka/producer/kafka-init-topics.sh
+
+
+
+--automatico topics em producer/
+nano kafka-init-topics.sh
+#permisos de ejecución
+chmod +x ~/crypto-kafka/producer/kafka-init-topics.sh
+#ejecución manual
+~/crypto-kafka/producer/kafka-init-topics.sh
+
+
+
+
+
+----Crear topics manual
+# crear topico crypto_stream
+docker exec -it kafka kafka-topics --create \
+  --topic crypto_stream \
+  --bootstrap-server kafka:29092 \
+  --partitions 1 \
+  --replication-factor 1
+
+docker exec -it kafka bash
+
+kafka-topics --bootstrap-server localhost:9092 --create --topic connect-configs --partitions 1 --replication-factor 1
+kafka-topics --bootstrap-server localhost:9092 --create --topic connect-offsets --partitions 1 --replication-factor 1
+kafka-topics --bootstrap-server localhost:9092 --create --topic connect-status --partitions 1 --replication-factor 1
+
+docker exec -it kafka kafka-configs --bootstrap-server localhost:9092 \
+  --alter --entity-type topics --entity-name connect-offsets \
+  --add-config cleanup.policy=compact
+
+docker exec -it kafka kafka-configs --bootstrap-server localhost:9092 \
+  --alter --entity-type topics --entity-name connect-status \
+  --add-config cleanup.policy=compact
+
+docker exec -it kafka kafka-configs --bootstrap-server localhost:9092 \
+  --alter --entity-type topics --entity-name connect-configs \
+  --add-config cleanup.policy=compact
+
+python3 producer_binance_kafka.py
+
+
+--------- config de inicio rapido
+cd crypto-kafka
+docker compose down
+docker compose up -d
+
+cd crypto-kafka/producer
+
+~/crypto-kafka/producer/kafka-init-topics.sh
+
+python3 producer_binance_kafka.py
+
+revisar escucha:
+ss -tlnp | grep 9092
+
+
+
+-- 
+revisar envio por el topic
+docker exec -it kafka /usr/bin/kafka-console-consumer \
+  --bootstrap-server localhost:9092 \
+  --topic crypto_stream \
+  --from-beginning \
+  --max-messages 5

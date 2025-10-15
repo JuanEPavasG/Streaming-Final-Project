@@ -1,0 +1,42 @@
+{
+  "name": "gcs-sink-crypto",
+  "config": {
+    "connector.class": "io.confluent.connect.gcs.GcsSinkConnector",
+    "tasks.max": "1",
+
+    "topics": "crypto_stream",
+
+    "gcs.bucket.name": "crypto-data-lake",
+    "gcs.part.size": "5242880",
+    "gcs.credentials.path": "/home/appuser/key.json",
+    "gcs.credentials.source": "FILE",
+
+    "format.class": "io.confluent.connect.gcs.format.json.JsonFormat",
+    "storage.class": "io.confluent.connect.gcs.storage.GcsStorage",
+
+    "flush.size": "1",
+    "rotate.interval.ms": "300000",  
+    "rotate.schedule.interval.ms": "300000",
+
+    "confluent.topic.bootstrap.servers": "10.150.0.2:9092",
+    "confluent.topic.replication.factor": "1",
+
+    "partitioner.class": "io.confluent.connect.storage.partitioner.TimeBasedPartitioner",
+    "partition.duration.ms": "300000",
+    "path.format": "YYYY/MM/dd/HH/mm/",
+    "topics.dir": "raw",
+
+    "locale": "en_US",
+    "timezone": "America/Bogota",
+
+    "filename.offset.zero.pad.width": "3",
+    "filename.timestamp.format": "yyyy-MM-dd'T'HH-mm-ss",
+    "filename.template": "${topic}_${timestamp}.json",
+
+    "schema.compatibility": "NONE",
+
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
+  }
+}

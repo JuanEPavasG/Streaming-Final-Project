@@ -1,0 +1,172 @@
+config inicial
+--------------------------------------
+sudo apt-get update && sudo apt-get upgrade -y
+sudo apt update
+sudo apt install -y nano
+sudo apt install -y python3 python3-pip
+
+sudo apt update -y
+sudo apt-get update && sudo apt-get upgrade -y
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmour -o /usr/share/keyrings/docker-archive-keyring.gpg
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+
+sudo apt-get install -y docker-compose-plugin
+sudo apt install netcat -y
+sudo systemctl enable docker
+sudo usermod -aG docker $USER
+(reiniciar ssh)
+
+mkdir kafka-connect
+cd kafka-connect
+
+# subir files:
+# ~/crypto-kafka/docker-compose.yml
+
+nano docker-compose.yml
+docker compose up -d --build
+docker ps
+
+
+(recorder reglas firewall para tcp)
+vpc networs -> firewall rules
+Name: allow-kafka-9092
+Targets: All instances in the network (o solo VM1)
+Source IP ranges: la IP interna de VM2, ej. 10.150.0.4/32, o 10.0.0.0/8 para todo el rango interno.
+Protocols and ports: tcp:9092
+
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+
+sudo usermod -aG docker $USER
+sudo apt-get install -y docker-compose-plugin
+
+mkdir -p ~/kafka-connect/
+cd  kafka-connect
+
+# subir files:
+# ~/kafka-connect/docker-compose.yml
+
+# levantar
+docker compose up -d --build
+docker logs -f kafka-connect
+
+--------- config de inicio rapido
+cd kafka-connect
+docker compsoe down
+docker compose up -d
+
+#deben estar los 4 topics en kafka vm1
+docker cp /home/jepavasg/kafka-connect/key.json kafka-connect:/home/appuser/key.json
+
+docker restart kafka-connect
+docker logs -f kafka-connect
+
+
+docker ps hasta heañthy
+docker ps
+
+# correr connector GCS
+curl -X POST -H "Content-Type: application/json" \
+  --data @gcs-sink-crypto.json \
+  http://localhost:8083/connectors
+
+curl -s http://localhost:8083/connectors/gcs-sink-crypto/status | jq
+
+# revisar cron
+cat load_gcs_to_bq.log
+
+
+
+
+---  config datalake connector GCS
+echo "test ok $(date)" > test.txt
+jepavasg@vm-kafka-connect-dl:~/kafka-connect$ gcloud storage cp test.txt gs://crypto-data-lake/raw/
+Copying file://test.txt to gs://crypto-data-lake/raw/test.txt
+  Completed files 1/1 | 45.0B/45.0B                                                              
+jepavasg@vm-kafka-connect-dl:~/kafka-connect$ 
+
+# revisar connector de GCS
+curl localhost:8083/connector-plugins | jq
+
+3 permisos al directorio plugins
+sudo chmod -R 777 ~/kafka-connect/plugins
+# instalar el de GCS
+wget https://hub-downloads.confluent.io/api/plugins/confluentinc/kafka-connect-gcs/versions/10.3.6/confluentinc-kafka-connect-gcs-10.3.6.zip -O kafka-connect-gcs.zip
+
+sudo apt install unzip -y
+unzip kafka-connect-gcs.zip -d .
+rm kafka-connect-gcs.zip
+docker restart kafka-connect
+curl localhost:8083/connector-plugins | jq
+
+# crear cuenta de servicio kafka-gcs-sink
+# descragar key.son y subir a vm/kafka-connect
+# pasarla a contenedor
+docker cp /home/jepavasg/kafka-connect/key.json kafka-connect:/home/appuser/key.json
+
+# dar permiso en GCS
+
+
+# crear connector
+nano gcs-sink-crypto.json
+#pasarlo al contenedor
+docker exec -it kafka-connect ls -l /home/appuser/key.json
+
+# en g shell
+gcloud projects add-iam-policy-binding vm-juanespavas \
+  --member="serviceAccount:kafka-gcs-sink@vm-juanespavas.iam.gserviceaccount.com" \
+  --role="roles/storage.admin"
+# listar buckets
+gsutil ls -p vm-juanespavas
+
+
+# registrar conector
+curl -X POST -H "Content-Type: application/json" \
+  --data @gcs-sink-crypto.json \
+  http://localhost:8083/connectors
+
+# borrar (si es necesario)
+curl -X DELETE http://localhost:8083/connectors/gcs-sink-crypto
+
+
+verificar: 
+curl -s http://localhost:8083/connectors/gcs-sink-crypto/status | jq
+# listar conectores activos
+curl -s http://localhost:8083/connectors | jq
+
+
+
+# crear cron para gcs to BQuery
+
+mkdir -p ~/kafka-connect/connect-gcs-to-bq
+nano ~/kafka-connect/connect-gcs-to-bq/load_gcs_to_bq.sh
+en vm-kafka-connect:~/kafka-connect/connect-gcs-to-bq$ 
+chmod +x ~/kafka-connect/connect-gcs-to-bq/load_gcs_to_bq.sh
+
+# entrar en carpeta 
+cd connect-gcs-to-gcp
+#probar manualmente
+chmod +x load_gcs_to_bq.sh
+./load_gcs_to_bq.sh
+# logs 
+cat load_gcs_to_bq.log
+
+
+#revisar
+bq show crypto_stream_ds.crypto_stream
+# consulta
+bq query --nouse_legacy_sql \
+'SELECT * FROM crypto_stream_ds.crypto_stream LIMIT 5'
+
+# config cron
+sudo apt install cron
+crontab -e
+-> */5 * * * * /home/jepavasg/kafka-connect/connect-gcs-to-bq/load_gcs_to_bq.sh >> /home/jepavasg/kafka-connect/connect-gcs-to-bq/load_gcs_to_bq.log 2>&1
+
+
+chmod +x /home/jepavasg/kafka-connect/connect-gcs-to-bq/load_gcs_to_bq.sh
+crontab -l

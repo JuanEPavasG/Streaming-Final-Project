@@ -1,0 +1,8 @@
+# crear servie account para grafana
+name: grafana-bigquery-sa
+Id: grafana-bigquery-sa
+
+
+# roles
+roles/bigquery.dataViewer
+roles/bigquery.jobUser
